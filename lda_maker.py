@@ -97,8 +97,13 @@ class LdaMaker:
     """
     gensim LDAのラッパー
     """
+
     def __init__(self):
         self.path_to_save = "placeholder"
+        self.sp = spm.SentencePieceProcessor()
+        self.tokens_list = []
+        self.dict_is_high_freq_token = {}
+        self.num_tokens_variation = -999
 
     def set_save_directory(self, path_to_save: str) -> bool:
         """
@@ -113,5 +118,36 @@ class LdaMaker:
         if not os.path.exists(path_to_save):
             os.mkdir(path_to_save)
         self.path_to_save = path_to_save
+
+        return True
+
+    def init_sentence_piece(self, file_name_sentence_piece_model: str) -> bool:
+        """
+        sentencepiceモデルのロード
+        :param file_name_sentence_piece_model:
+        :return:
+        """
+        self.sp = init_sentence_piece(file_name_sentence_piece_model)
+
+        return True
+
+    def make_tokens_list(self, sentences: list, threshold_remove_doc_freq_rate_over_this):
+        """
+        文書群を文書ごとにtokenize
+
+        init_sentence_piece実行後に実施のこと
+        :param sentences: list of str, 文書群
+        :param threshold_remove_doc_freq_rate_over_this: float(0-1), この割合以上の出現率の語をstop word入り
+        :return:
+        """
+        self.tokens_list = [self.sp.EncodeAsPieces(sentence) for sentence in tqdm(sentences, desc="tokenize @ lda")]
+        # remove high doc_freq tokens
+        # ## make frequently token dict
+        self.dict_is_high_freq_token = search_frequent_token(tokens_list=self.tokens_list,
+                                                             threshold_remove_doc_freq_rate_over_this=threshold_remove_doc_freq_rate_over_this)
+        # ## remove
+        self.tokens_list = [remove_stops(tokens, self.dict_is_high_freq_token) for tokens in self.tokens_list]
+        # 異なり語数を計算しておく, ldaの再学習で使う
+        self.num_tokens_variation = len(set(aggregate_all_token(self.tokens_list)))
 
         return True

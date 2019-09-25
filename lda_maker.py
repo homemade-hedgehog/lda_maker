@@ -91,3 +91,27 @@ def search_frequent_token(tokens_list: list, threshold_remove_doc_freq_rate_over
     dict_is_stops = {token: True for token in stops}
 
     return dict_is_stops
+
+
+class LdaMaker:
+    """
+    gensim LDAのラッパー
+    """
+    def __init__(self):
+        self.path_to_save = "placeholder"
+
+    def set_save_directory(self, path_to_save: str) -> bool:
+        """
+        set & prepare path to save
+        :param path_to_save: str, セーブ先フォルダ
+        :return:
+        """
+        if path_to_save == "":
+            path_to_save = f"lda_{hashlib.sha1(time.ctime().encode()).hexdigest()}/"
+        if not path_to_save.endswith("/"):
+            path_to_save += "/"
+        if not os.path.exists(path_to_save):
+            os.mkdir(path_to_save)
+        self.path_to_save = path_to_save
+
+        return True

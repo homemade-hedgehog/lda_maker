@@ -98,12 +98,16 @@ class LdaMaker:
     gensim LDAのラッパー
     """
 
-    def __init__(self):
+    def __init__(self, file_name_sentence_piece_model: str, path_to_save=""):
         self.path_to_save = "placeholder"
+        self.set_save_directory(path_to_save)
         self.sp = spm.SentencePieceProcessor()
+        self.init_sentence_piece(file_name_sentence_piece_model)
         self.tokens_list = []
         self.dict_is_high_freq_token = {}
         self.num_tokens_variation = -999
+        self.num_process = os.cpu_count()
+        self.dictionary = "placeholder"
 
     def set_save_directory(self, path_to_save: str) -> bool:
         """
@@ -149,5 +153,68 @@ class LdaMaker:
         self.tokens_list = [remove_stops(tokens, self.dict_is_high_freq_token) for tokens in self.tokens_list]
         # 異なり語数を計算しておく, ldaの再学習で使う
         self.num_tokens_variation = len(set(aggregate_all_token(self.tokens_list)))
+
+        return True
+
+    def make_lda_model(self, sentences: list, threshold_remove_doc_freq_rate_over_this: float, num_topics=20,
+                       passes=200) -> bool:
+        """
+        LDAモデルを作成するラッパー
+        LDA関連一式はjoblibを使って自動セーブ
+
+        passesは学習のiteration回数で、少ないと精度がとても悪い
+        精度の指標値を数値で表示するので、収束してなさそうならpassesを大きくして再実行
+
+        reference:
+        [数式多めでさらっと](http://acro-engineer.hatenablog.com/entry/2017/12/11/120000)
+        [ガチ勢のため](http://www.jmlr.org/papers/volume3/blei03a/blei03a.pdf)
+        :param sentences: list of str, 文書群, 文のlist
+        :param threshold_remove_doc_freq_rate_over_this:　float(0-1), この割合以上の出現率の語をstop word入り
+        :param num_topics:　int, 想定する話題の数, 意味はreference参照
+        :param passes: int, LDAの学習回数, 多くすると基本的には良いことが多い
+        :return:
+        """
+        # documents -> list of tokens. token must be not high freq
+        self.make_tokens_list(sentences=sentences,
+                              threshold_remove_doc_freq_rate_over_this=threshold_remove_doc_freq_rate_over_this)
+        # gensim dictionary, 全異なり語数を端折らずに辞書化する指定。 * 指定しないと10,000語くらいで端折るはず
+        self.dictionary = Dictionary(self.tokens_list, prune_at=self.num_tokens_variation)
+        # tokens -> corpus
+        corpus = [self.dictionary.doc2bow(tokens) for tokens in self.tokens_list]
+
+        # prepare LDA
+        check_perplexity = None
+        # make LDA
+        # ## for convergence monitor
+        file_name_log = "delete_me.log"
+        logging.basicConfig(filename=file_name_log,
+                            format="%(asctime)s:%(levelname)s:%(message)s",
+                            level=logging.INFO, encoding='utf-8')
+        # TODO loggingのエンコードがwindowsだとcp932になってWARNINGを吐くし、収束確認ができないっぽい
+        # ## make
+        model_lda = LdaMulticore(corpus=corpus, num_topics=num_topics, id2word=self.dictionary,
+                                 workers=self.num_process, passes=passes, eval_every=check_perplexity)
+        # ## monitor shutdown
+        logging.shutdown()
+
+        # geisim ldaのログフォーマットでperplexityの行を探す
+        p = re.compile(r"(-*\d+\.\d+) per-word .* (\d+\.\d+) perplexity")
+        # ## 読んで抽出
+        matches = [p.findall(l) for l in open(file_name_log)]
+        # ## hitしている行は長さがある
+        matches = [m for m in matches if len(m) > 0]
+        tuples = [t[0] for t in matches]
+        # ## gensim perplexity means log_preplexity
+        perplexity = [float(t[1]) for t in tuples]
+        # ## per word bounds
+        liklihood = [float(t[0]) for t in tuples]
+        print("log perplesity, bigger is better\n", perplexity)
+        print("if not converged. retry 'make_lda_model(passes=MORE_LARGE_INTEGER)'")
+        os.remove(file_name_log)
+
+        # save
+        joblib.dump(self.dict_is_high_freq_token, f"{self.path_to_save}dict_is_stops.joblib")
+        joblib.dump(model_lda, f"{self.path_to_save}model_LDA.joblib")
+        joblib.dump(self.dictionary, f"{self.path_to_save}dictionary_LDA.joblib")
 
         return True

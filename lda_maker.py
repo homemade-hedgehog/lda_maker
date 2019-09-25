@@ -26,3 +26,16 @@ def remove_stops(tokens: list, dict_is_stops: dict) -> list:
     """
     list_not_stop = [not dict_is_stops.get(token, False) for token in tokens]
     return np.array(tokens, dtype=object)[list_not_stop].tolist()
+
+
+def leave_valid(tokens: list, dict_is_valid: dict) -> list:
+    """
+    残したいtokenだけにする
+
+    dict_is_valid = {token_valid: True}
+    :param tokens: list of str, token の list
+    :param dict_is_valid: dict
+    :return: list
+    """
+    list_valid = [dict_is_valid.get(token, False) for token in tokens]
+    return np.array(tokens, dtype=object)[list_valid].tolist()

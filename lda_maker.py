@@ -39,3 +39,14 @@ def leave_valid(tokens: list, dict_is_valid: dict) -> list:
     """
     list_valid = [dict_is_valid.get(token, False) for token in tokens]
     return np.array(tokens, dtype=object)[list_valid].tolist()
+
+
+def init_sentence_piece(file_name_sentence_piece_model: str):
+    """
+    sentencepiece model loader
+    :param file_name_sentence_piece_model: str, path to sentencepiece model file
+    :return: sentecepiece.SentencePieceProcessor
+    """
+    sp = spm.SentencePieceProcessor()
+    sp.load(file_name_sentence_piece_model)
+    return sp

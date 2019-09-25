@@ -41,7 +41,7 @@ def leave_valid(tokens: list, dict_is_valid: dict) -> list:
     return np.array(tokens, dtype=object)[list_valid].tolist()
 
 
-def init_sentence_piece(file_name_sentence_piece_model: str):
+def init_sentence_piece(file_name_sentence_piece_model: str) ->spm.SentencePieceProcessor:
     """
     sentencepiece model loader
     :param file_name_sentence_piece_model: str, path to sentencepiece model file
@@ -50,3 +50,14 @@ def init_sentence_piece(file_name_sentence_piece_model: str):
     sp = spm.SentencePieceProcessor()
     sp.load(file_name_sentence_piece_model)
     return sp
+
+
+def aggregate_all_token(tokens_list: list) -> list:
+    """
+    tokens_listに含まれる全ての語を1つのlistにして返す
+    :param tokens_list:list of list of str, 1文書をtokenizeしたlistを全文書でlist化
+    :return: list, 結合したもの
+    """
+    all_token = []
+    _ = [all_token.extend(tokens) for tokens in tokens_list]
+    return all_token

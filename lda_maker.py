@@ -11,6 +11,7 @@ import hashlib
 import time
 import joblib
 import re
+import codecs
 
 
 def remove_stops(tokens: list, dict_is_stops: dict) -> list:
@@ -183,14 +184,13 @@ class LdaMaker:
         corpus = [self.dictionary.doc2bow(tokens) for tokens in self.tokens_list]
 
         # prepare LDA
-        check_perplexity = None
+        check_perplexity = 5
         # make LDA
         # ## for convergence monitor
         file_name_log = "delete_me.log"
-        logging.basicConfig(filename=file_name_log,
+        logging.basicConfig(handlers=logging.FileHandler(filename=file_name_log, mode="w", encoding='utf-8'),
                             format="%(asctime)s:%(levelname)s:%(message)s",
-                            level=logging.INFO, encoding='utf-8')
-        # TODO loggingのエンコードがwindowsだとcp932になってWARNINGを吐くし、収束確認ができないっぽい
+                            level=logging.INFO)
         # ## make
         model_lda = LdaMulticore(corpus=corpus, num_topics=num_topics, id2word=self.dictionary,
                                  workers=self.num_process, passes=passes, eval_every=check_perplexity)
@@ -200,7 +200,7 @@ class LdaMaker:
         # geisim ldaのログフォーマットでperplexityの行を探す
         p = re.compile(r"(-*\d+\.\d+) per-word .* (\d+\.\d+) perplexity")
         # ## 読んで抽出
-        matches = [p.findall(l) for l in open(file_name_log)]
+        matches = [p.findall(l) for l in open(file_name_log, encoding="utf-8")]
         # ## hitしている行は長さがある
         matches = [m for m in matches if len(m) > 0]
         tuples = [t[0] for t in matches]

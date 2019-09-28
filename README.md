@@ -89,7 +89,7 @@ tokens = remove_stops(tokens, dict_is_stops)
 # ## convert token into token_id & freq
 tokens_converted = dictionary.doc2bow(tokens)
 # ## calculate
-topic_distribution = model[tokens_converted]  # [(7, 0.9972457)] <- 話題7版に99.7%当てはまる
+topic_distribution = model[tokens_converted]  # [(7, 0.9972457)] <- 話題7番に99.7%当てはまる
 
 # topic_distribution -> vector of sentence representative
 array = np.zeros(model.num_topics)

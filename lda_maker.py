@@ -12,7 +12,7 @@ import time
 import joblib
 import re
 import codecs
-from callbacks import EarlyStoppingPerplexityMetric
+from early_stopping import EarlyStopping, split_train_valid
 
 
 def remove_stops(tokens: list, dict_is_stops: dict) -> list:
@@ -110,6 +110,7 @@ class LdaMaker:
         self.num_tokens_variation = -999
         self.num_process = os.cpu_count()
         self.dictionary = "placeholder"
+        self.log = []
 
     def set_save_directory(self, path_to_save: str) -> bool:
         """
@@ -158,8 +159,8 @@ class LdaMaker:
 
         return True
 
-    def make_lda_model(self, sentences: list, threshold_remove_doc_freq_rate_over_this: float, num_topics=20,
-                       passes=200) -> bool:
+    def make_lda_model(self, sentences: list, threshold_remove_doc_freq_rate_over_this: float, rate_of_valid: float,
+                       num_topics=20, passes=200, patience=5, must_move_this_rate=0.03, round_check_convergence=3) -> bool:
         """
         LDAモデルを作成するラッパー
         LDA関連一式はjoblibを使って自動セーブ
@@ -172,8 +173,12 @@ class LdaMaker:
         [ガチ勢のため](http://www.jmlr.org/papers/volume3/blei03a/blei03a.pdf)
         :param sentences: list of str, 文書群, 文のlist
         :param threshold_remove_doc_freq_rate_over_this:　float(0-1), この割合以上の出現率の語をstop word入り
+        :param rate_of_valid: float, greater than 0 and less than 1, 収束判定でデータをvalidationに回す割合
         :param num_topics:　int, 想定する話題の数, 意味はreference参照
         :param passes: int, LDAの学習回数, 多くすると基本的には良いことが多い
+        :param patience: int, 収束判定でpatience回動かなかったら打ち切る
+        :param must_move_this_rate: float, greater than 0 and less than 1, 収束判定で動いていないと見なす割合
+        :param round_check_convergence: int, 収束判定のskip回数。重い処理なのでround_check_convergence回に1回判定
         :return:
         """
         # documents -> list of tokens. token must be not high freq
@@ -185,34 +190,23 @@ class LdaMaker:
         corpus = [self.dictionary.doc2bow(tokens) for tokens in self.tokens_list]
 
         # prepare LDA
-        check_perplexity = 5
         # make LDA
-        # ## for convergence monitor
-        file_name_log = "delete_me.log"
-        logging.basicConfig(handlers=[logging.FileHandler(filename=file_name_log, mode="w", encoding='utf-8')],
-                            format="%(asctime)s:%(levelname)s:%(message)s",
-                            level=logging.INFO)
+        # ## for early stopping
+        train, valid = split_train_valid(corpus=corpus, rate_of_valid=rate_of_valid)
+        early_stopping = EarlyStopping(patience=patience, must_move_this_rate=must_move_this_rate)
         # ## make
-        model_lda = LdaMulticore(corpus=corpus, num_topics=num_topics, id2word=self.dictionary,
-                                 workers=self.num_process, passes=passes, eval_every=check_perplexity)
-        # ## monitor shutdown
-        logging.shutdown()
+        model_lda = LdaMulticore(corpus=train, num_topics=num_topics, id2word=self.dictionary,
+                                 workers=self.num_process, passes=1, eval_every=round_check_convergence)
+        _ = early_stopping.is_converged(model=model_lda, valid_corpus=valid)
+        # ## train model
+        for i_loop in tqdm(range(1, passes), desc="lda learning @ lda"):
+            model_lda.update(train)
+            if i_loop % round_check_convergence == 0:
+                if early_stopping.is_converged(model=model_lda, valid_corpus=valid):
+                    break
 
-        # geisim ldaのログフォーマットでperplexityの行を探す
-        p = re.compile(r"(-*\d+\.\d+) per-word .* (\d+\.\d+) perplexity")
-        # ## 読んで抽出
-        matches = [p.findall(l) for l in open(file_name_log, encoding="utf-8")]
-        # ## hitしている行は長さがある
-        matches = [m for m in matches if len(m) > 0]
-        tuples = [t[0] for t in matches]
-        # ## gensim perplexity means log_preplexity
-        perplexity = [float(t[1]) for t in tuples]
-        # ## per word bounds
-        liklihood = [float(t[0]) for t in tuples]
-        print("log perplesity, bigger is better\n", perplexity)
-        print("if not converged. retry 'make_lda_model(passes=MORE_LARGE_INTEGER)'")
-        os.remove(file_name_log)
-
+        # show convergence
+        self.log = early_stopping.log
         # save
         joblib.dump(self.dict_is_high_freq_token, f"{self.path_to_save}dict_is_stops.joblib")
         joblib.dump(model_lda, f"{self.path_to_save}model_LDA.joblib")

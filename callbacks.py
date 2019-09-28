@@ -1,6 +1,11 @@
 from gensim.models.callbacks import PerplexityMetric
 import numpy as np
 
+"""
+FUTURE WARNING
+maybe delete
+"""
+
 
 class EarlyStoppingException(Exception):
     """

@@ -1,0 +1,4 @@
+sentencepiece
+tqdm
+gensim
+numpy

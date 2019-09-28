@@ -39,8 +39,12 @@ path_to_doc = r"path_to_document/documents.joblib"
 sentences = joblib.load(path_to_doc) # ["マイクロ化学デバイスおよび解析装置\n本発明は、マイクロ化学デバイスおよび解析装置...", ...]
 
 lda_maker = LdaMaker(sentence_piece)
-lda_maker.make_lda_model(sentences, threshold_remove_doc_freq_rate_over_this=0.7, num_topics=20, passes=200)
+lda_maker.make_lda_model(sentences, threshold_remove_doc_freq_rate_over_this=0.7, num_topics=20, passes=200, rate_of_valid=0.3, round_check_convergence=5)
 ```
+- threshold_remove_doc_freq_rate_over_this
+  - 0 ~ 1
+  - doc freqがこの割合より大きい単語は評価から外す
+    - doc freq: 対象の単語を含む文書数 / 総文書数
 - num_topics
   - 10-100
   - 文書に含まれる話題の数
@@ -50,6 +54,13 @@ lda_maker.make_lda_model(sentences, threshold_remove_doc_freq_rate_over_this=0.7
   - 20-
   - 少ないと収束まで行けずに、同じ話題に属する文書同士があからさまにおかしい感じになる
   - 多いと話題がいい感じにギュッとまとまって納得感が出てくる
+- rate_of_valid
+  - 0 ~ 1
+  - 全文書に対し、収束評価用に取っておく文書の割合
+- round_check_convergence
+  - 自然数 (< passes)
+  - 収束判定をround_check_convergence回に1回だけ行う
+    - 収束判定は学習より処理が重いので、ある程度サボったほうが全体として軽くなる
   
 #### string -> 話題の当てはまり具合
 ```python

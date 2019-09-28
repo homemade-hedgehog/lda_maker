@@ -12,6 +12,7 @@ import time
 import joblib
 import re
 import codecs
+from callbacks import EarlyStoppingPerplexityMetric
 
 
 def remove_stops(tokens: list, dict_is_stops: dict) -> list:
@@ -188,7 +189,7 @@ class LdaMaker:
         # make LDA
         # ## for convergence monitor
         file_name_log = "delete_me.log"
-        logging.basicConfig(handlers=logging.FileHandler(filename=file_name_log, mode="w", encoding='utf-8'),
+        logging.basicConfig(handlers=[logging.FileHandler(filename=file_name_log, mode="w", encoding='utf-8')],
                             format="%(asctime)s:%(levelname)s:%(message)s",
                             level=logging.INFO)
         # ## make
